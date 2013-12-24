@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 The Android Open Source Project
+ * Copyright (C) 2014 Casey Borders
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,14 +23,11 @@ import android.view.View;
 import android.view.ViewGroup;
 
 /**
- * Base class providing the adapter to populate pages inside of a
- * {@link ViewPager}. You will most likely want to use a more specific
- * implementation of this, such as
- * {@link android.support.v4.app.FragmentPagerAdapter} or
- * {@link android.support.v4.app.FragmentStatePagerAdapter}.
+ * Base class providing the adapter to populate pages inside of an
+ * {@link InfiniteViewPager}.
  * 
  * <p>
- * When you implement a PagerAdapter, you must override the following methods at
+ * When you implement an InfinitePagerAdapter, you must override the following methods at
  * minimum:
  * </p>
  * <ul>
@@ -41,19 +38,19 @@ import android.view.ViewGroup;
  * </ul>
  * 
  * <p>
- * PagerAdapter is more general than the adapters used for
+ * InfinitePagerAdapter is more general than the adapters used for
  * {@link android.widget.AdapterView AdapterViews}. Instead of providing a View
- * recycling mechanism directly ViewPager uses callbacks to indicate the steps
- * taken during an update. A PagerAdapter may implement a form of View recycling
+ * recycling mechanism directly InfinitePagerAdapter uses callbacks to indicate the steps
+ * taken during an update. An InfinitePagerAdapter may implement a form of View recycling
  * if desired or use a more sophisticated method of managing page Views such as
  * Fragment transactions where each page is represented by its own Fragment.
  * </p>
  * 
  * <p>
- * ViewPager associates each page with a key Object instead of working with
+ * InfinitePagerAdapter associates each page with a key Object instead of working with
  * Views directly. This key is used to track and uniquely identify a given page
- * independent of its position in the adapter. A call to the PagerAdapter method
- * {@link #startUpdate(ViewGroup)} indicates that the contents of the ViewPager
+ * independent of its position in the adapter. A call to the InfinitePagerAdapter method
+ * {@link #startUpdate(ViewGroup)} indicates that the contents of the InfiniteViewPager
  * are about to change. One or more calls to
  * {@link #instantiateItem(ViewGroup, int)} and/or
  * {@link #destroyItem(ViewGroup, int, Object)} will follow, and the end of an
@@ -68,7 +65,7 @@ import android.view.ViewGroup;
  * </p>
  * 
  * <p>
- * A very simple PagerAdapter may choose to use the page Views themselves as key
+ * A very simple InfinitePagerAdapter may choose to use the page Views themselves as key
  * objects, returning them from {@link #instantiateItem(ViewGroup, int)} after
  * creation and adding them to the parent ViewGroup. A matching
  * {@link #destroyItem(ViewGroup, int, Object)} implementation would remove the
@@ -77,11 +74,11 @@ import android.view.ViewGroup;
  * </p>
  * 
  * <p>
- * PagerAdapter supports data set changes. Data set changes must occur on the
+ * InfinitePagerAdapter supports data set changes. Data set changes must occur on the
  * main thread and must end with a call to {@link #notifyDataSetChanged()}
  * similar to AdapterView adapters derived from
  * {@link android.widget.BaseAdapter}. A data set change may involve pages being
- * added, removed, or changing position. The ViewPager will keep the current
+ * added, removed, or changing position. The InfiniteViewPager will keep the current
  * page active provided the adapter implements the method
  * {@link #getItemPosition(Object)}.
  * </p>
@@ -102,7 +99,7 @@ public abstract class InfinitePagerAdapter
 	 * Called when a change in the shown pages is going to start being made.
 	 * 
 	 * @param container
-	 *            The containing View which is displaying this adapter's page
+	 *            The containing ViewGroup which is displaying this adapter's page
 	 *            views.
 	 */
 	public void startUpdate(ViewGroup container)
@@ -116,7 +113,7 @@ public abstract class InfinitePagerAdapter
 	 * .
 	 * 
 	 * @param container
-	 *            The containing View in which the page will be shown.
+	 *            The containing ViewGroup in which the page will be shown.
 	 * @param position
 	 *            The page position to be instantiated.
 	 * @return Returns an Object representing the new page. This does not need
@@ -130,12 +127,12 @@ public abstract class InfinitePagerAdapter
 	 * is done by the time it returns from {@link #finishUpdate(ViewGroup)}.
 	 * 
 	 * @param container
-	 *            The containing View from which the page will be removed.
+	 *            The containing ViewGroup from which the page will be removed.
 	 * @param position
 	 *            The page position to be removed.
 	 * @param object
 	 *            The same object that was returned by
-	 *            {@link #instantiateItem(View, int)}.
+	 *            {@link #instantiateItem(ViewGroup, int)}.
 	 */
 	public abstract void destroyItem(ViewGroup container, int position, Object object);
 
@@ -144,12 +141,12 @@ public abstract class InfinitePagerAdapter
 	 * the "primary", that is the one show to the user as the current page.
 	 * 
 	 * @param container
-	 *            The containing View from which the page will be removed.
+	 *            The containing ViewGroup from which the page will be removed.
 	 * @param position
 	 *            The page position that is now the primary.
 	 * @param object
 	 *            The same object that was returned by
-	 *            {@link #instantiateItem(View, int)}.
+	 *            {@link #instantiateItem(ViewGroup, int)}.
 	 */
 	public void setPrimaryItem(ViewGroup container, int position, Object object)
 	{
@@ -161,7 +158,7 @@ public abstract class InfinitePagerAdapter
 	 * removed from the container as appropriate.
 	 * 
 	 * @param container
-	 *            The containing View which is displaying this adapter's page
+	 *            The containing ViewGroup which is displaying this adapter's page
 	 *            views.
 	 */
 	public void finishUpdate(ViewGroup container)
@@ -219,7 +216,7 @@ public abstract class InfinitePagerAdapter
 	 * 
 	 * @param object
 	 *            Object representing an item, previously returned by a call to
-	 *            {@link #instantiateItem(View, int)}.
+	 *            {@link #instantiateItem(ViewGroup, int)}.
 	 * @return object's new position index from [0, {@link #getCount()}),
 	 *         {@link #POSITION_UNCHANGED} if the object's position has not
 	 *         changed, or {@link #POSITION_NONE} if the item is no longer
