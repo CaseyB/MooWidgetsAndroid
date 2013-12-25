@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 The Android Open Source Project
+ * Copyright (C) 2014 Casey Borders
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,8 +16,12 @@
 
 package org.moo.widgets;
 
+import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+
 import android.content.Context;
-import android.content.res.Resources;
 import android.content.res.TypedArray;
 import android.database.DataSetObserver;
 import android.graphics.Canvas;
@@ -33,6 +37,7 @@ import android.support.v4.os.ParcelableCompatCreatorCallbacks;
 import android.support.v4.view.AccessibilityDelegateCompat;
 import android.support.v4.view.KeyEventCompat;
 import android.support.v4.view.MotionEventCompat;
+import android.support.v4.view.PagerAdapter;
 import android.support.v4.view.VelocityTrackerCompat;
 import android.support.v4.view.ViewCompat;
 import android.support.v4.view.ViewConfigurationCompat;
@@ -55,11 +60,6 @@ import android.view.ViewParent;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.animation.Interpolator;
 import android.widget.Scroller;
-
-import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
 
 /**
  * Layout manager that allows the user to flip left and right through pages of
@@ -109,13 +109,6 @@ public class InfiniteViewPager extends ViewGroup
 
 	private static final int[] LAYOUT_ATTRS = new int[] { android.R.attr.layout_gravity };
 
-	/**
-	 * Used to track what the expected number of items in the adapter should be.
-	 * If the app changes this when we don't expect it, we'll throw a big
-	 * obnoxious exception.
-	 */
-	private int mExpectedAdapterCount;
-
 	static class ItemInfo
 	{
 		Object object;
@@ -160,12 +153,6 @@ public class InfiniteViewPager extends ViewGroup
 	private Drawable mMarginDrawable;
 	private int mTopPageBounds;
 	private int mBottomPageBounds;
-
-	// Offsets of the first and last items, if known.
-	// Set during population, used to determine if we are at the beginning
-	// or end of the pager data set during touch scrolling.
-	private float mFirstOffset = -Float.MAX_VALUE;
-	private float mLastOffset = Float.MAX_VALUE;
 
 	private int mChildWidthMeasureSpec;
 	private int mChildHeightMeasureSpec;
@@ -473,7 +460,6 @@ public class InfiniteViewPager extends ViewGroup
 
 		final InfinitePagerAdapter oldAdapter = mAdapter;
 		mAdapter = adapter;
-		mExpectedAdapterCount = 0;
 
 		if(mAdapter != null)
 		{
@@ -485,7 +471,6 @@ public class InfiniteViewPager extends ViewGroup
 			mPopulatePending = false;
 			final boolean wasFirstLayout = mFirstLayout;
 			mFirstLayout = true;
-			mExpectedAdapterCount = mAdapter.getCount();
 			if(mRestoredCurItem >= 0)
 			{
 				mAdapter.restoreState(mRestoredAdapterState, mRestoredClassLoader);
@@ -585,7 +570,7 @@ public class InfiniteViewPager extends ViewGroup
 
 	void setCurrentItemInternal(int item, boolean smoothScroll, boolean always, int velocity)
 	{
-		if(mAdapter == null || mAdapter.getCount() <= 0)
+		if(mAdapter == null)
 		{
 			setScrollingCacheEnabled(false);
 			return;
@@ -596,14 +581,6 @@ public class InfiniteViewPager extends ViewGroup
 			return;
 		}
 
-		if(item < 0)
-		{
-			item = 0;
-		}
-		else if(item >= mAdapter.getCount())
-		{
-			item = mAdapter.getCount() - 1;
-		}
 		final int pageLimit = mOffscreenPageLimit;
 		if(item > (mCurItem + pageLimit) || item < (mCurItem - pageLimit))
 		{
@@ -647,7 +624,7 @@ public class InfiniteViewPager extends ViewGroup
 		if(curInfo != null)
 		{
 			final int width = getClientWidth();
-			destX = (int) (width * Math.max(mFirstOffset, Math.min(curInfo.offset, mLastOffset)));
+			destX = (int)(width * curInfo.offset);
 		}
 		if(smoothScroll)
 		{
@@ -1006,11 +983,7 @@ public class InfiniteViewPager extends ViewGroup
 	{
 		// This method only gets called if our observer is attached, so mAdapter
 		// is non-null.
-
-		final int adapterCount = mAdapter.getCount();
-		mExpectedAdapterCount = adapterCount;
-		boolean needPopulate = mItems.size() < mOffscreenPageLimit * 2 + 1
-				&& mItems.size() < adapterCount;
+		boolean needPopulate = mItems.size() < mOffscreenPageLimit * 2 + 1;
 		int newCurrItem = mCurItem;
 
 		boolean isUpdating = false;
@@ -1038,12 +1011,8 @@ public class InfiniteViewPager extends ViewGroup
 				mAdapter.destroyItem(this, ii.position, ii.object);
 				needPopulate = true;
 
-				if(mCurItem == ii.position)
-				{
-					// Keep the current item in the valid range
-					newCurrItem = Math.max(0, Math.min(mCurItem, adapterCount - 1));
-					needPopulate = true;
-				}
+				if(mCurItem == ii.position) needPopulate = true;
+
 				continue;
 			}
 
@@ -1127,27 +1096,8 @@ public class InfiniteViewPager extends ViewGroup
 		mAdapter.startUpdate(this);
 
 		final int pageLimit = mOffscreenPageLimit;
-		final int startPos = Math.max(0, mCurItem - pageLimit);
-		final int N = mAdapter.getCount();
-		final int endPos = Math.min(N - 1, mCurItem + pageLimit);
-
-		if(N != mExpectedAdapterCount)
-		{
-			String resName;
-			try
-			{
-				resName = getResources().getResourceName(getId());
-			}
-			catch(Resources.NotFoundException e)
-			{
-				resName = Integer.toHexString(getId());
-			}
-			throw new IllegalStateException("The application's PagerAdapter changed the adapter's"
-					+ " contents without calling PagerAdapter#notifyDataSetChanged!"
-					+ " Expected adapter item count: " + mExpectedAdapterCount + ", found: " + N
-					+ " Pager id: " + resName + " Pager class: " + getClass()
-					+ " Problematic adapter: " + mAdapter.getClass());
-		}
+		final int startPos = mCurItem - pageLimit;
+		final int endPos = mCurItem + pageLimit;
 
 		// Locate the currently focused item or add it if needed.
 		int curIndex = -1;
@@ -1162,7 +1112,7 @@ public class InfiniteViewPager extends ViewGroup
 			}
 		}
 
-		if(curItem == null && N > 0)
+		if(curItem == null)
 		{
 			curItem = addNewItem(mCurItem, curIndex);
 		}
@@ -1176,9 +1126,8 @@ public class InfiniteViewPager extends ViewGroup
 			int itemIndex = curIndex - 1;
 			ItemInfo ii = itemIndex >= 0 ? mItems.get(itemIndex) : null;
 			final int clientWidth = getClientWidth();
-			final float leftWidthNeeded = clientWidth <= 0 ? 0 : 2.f - curItem.widthFactor
-					+ (float) getPaddingLeft() / (float) clientWidth;
-			for(int pos = mCurItem - 1; pos >= 0; pos--)
+			final float leftWidthNeeded = clientWidth <= 0 ? 0 : 2.f - curItem.widthFactor + (float) getPaddingLeft() / (float) clientWidth;
+			for(int pos = mCurItem - 1;;pos--)
 			{
 				if(extraWidthLeft >= leftWidthNeeded && pos < startPos)
 				{
@@ -1220,9 +1169,8 @@ public class InfiniteViewPager extends ViewGroup
 			if(extraWidthRight < 2.f)
 			{
 				ii = itemIndex < mItems.size() ? mItems.get(itemIndex) : null;
-				final float rightWidthNeeded = clientWidth <= 0 ? 0 : (float) getPaddingRight()
-						/ (float) clientWidth + 2.f;
-				for(int pos = mCurItem + 1; pos < N; pos++)
+				final float rightWidthNeeded = clientWidth <= 0 ? 0 : (float) getPaddingRight() / (float) clientWidth + 2.f;
+				for(int pos = mCurItem + 1;;pos++)
 				{
 					if(extraWidthRight >= rightWidthNeeded && pos > endPos)
 					{
@@ -1342,7 +1290,6 @@ public class InfiniteViewPager extends ViewGroup
 
 	private void calculatePageOffsets(ItemInfo curItem, int curIndex, ItemInfo oldCurInfo)
 	{
-		final int N = mAdapter.getCount();
 		final int width = getClientWidth();
 		final float marginOffset = width > 0 ? (float) mPageMargin / width : 0;
 		// Fix up offsets for later layout.
@@ -1405,9 +1352,7 @@ public class InfiniteViewPager extends ViewGroup
 		final int itemCount = mItems.size();
 		float offset = curItem.offset;
 		int pos = curItem.position - 1;
-		mFirstOffset = curItem.position == 0 ? curItem.offset : -Float.MAX_VALUE;
-		mLastOffset = curItem.position == N - 1 ? curItem.offset + curItem.widthFactor - 1
-				: Float.MAX_VALUE;
+
 		// Previous pages
 		for(int i = curIndex - 1; i >= 0; i--, pos--)
 		{
@@ -1418,7 +1363,6 @@ public class InfiniteViewPager extends ViewGroup
 			}
 			offset -= ii.widthFactor + marginOffset;
 			ii.offset = offset;
-			if(ii.position == 0) mFirstOffset = offset;
 		}
 		offset = curItem.offset + curItem.widthFactor + marginOffset;
 		pos = curItem.position + 1;
@@ -1429,10 +1373,6 @@ public class InfiniteViewPager extends ViewGroup
 			while(pos < ii.position)
 			{
 				offset += mAdapter.getPageWidth(pos++) + marginOffset;
-			}
-			if(ii.position == N - 1)
-			{
-				mLastOffset = offset + ii.widthFactor - 1;
 			}
 			ii.offset = offset;
 			offset += ii.widthFactor + marginOffset;
@@ -1772,7 +1712,7 @@ public class InfiniteViewPager extends ViewGroup
 		else
 		{
 			final ItemInfo ii = infoForPosition(mCurItem);
-			final float scrollOffset = ii != null ? Math.min(ii.offset, mLastOffset) : 0;
+			final float scrollOffset = ii != null ? ii.offset : 0;
 			final int scrollPos = (int) (scrollOffset * (width - getPaddingLeft() - getPaddingRight()));
 			if(scrollPos != getScrollX())
 			{
@@ -2279,7 +2219,7 @@ public class InfiniteViewPager extends ViewGroup
 			return false;
 		}
 
-		if(mAdapter == null || mAdapter.getCount() == 0)
+		if(mAdapter == null)
 		{
 			// Nothing to present or scroll; nothing to touch.
 			return false;
@@ -2405,44 +2345,7 @@ public class InfiniteViewPager extends ViewGroup
 
 		float oldScrollX = getScrollX();
 		float scrollX = oldScrollX + deltaX;
-		final int width = getClientWidth();
 
-		float leftBound = width * mFirstOffset;
-		float rightBound = width * mLastOffset;
-		boolean leftAbsolute = true;
-		boolean rightAbsolute = true;
-
-		final ItemInfo firstItem = mItems.get(0);
-		final ItemInfo lastItem = mItems.get(mItems.size() - 1);
-		if(firstItem.position != 0)
-		{
-			leftAbsolute = false;
-			leftBound = firstItem.offset * width;
-		}
-		if(lastItem.position != mAdapter.getCount() - 1)
-		{
-			rightAbsolute = false;
-			rightBound = lastItem.offset * width;
-		}
-
-		if(scrollX < leftBound)
-		{
-			if(leftAbsolute)
-			{
-				float over = leftBound - scrollX;
-				needsInvalidate = mLeftEdge.onPull(Math.abs(over) / width);
-			}
-			scrollX = leftBound;
-		}
-		else if(scrollX > rightBound)
-		{
-			if(rightAbsolute)
-			{
-				float over = scrollX - rightBound;
-				needsInvalidate = mRightEdge.onPull(Math.abs(over) / width);
-			}
-			scrollX = rightBound;
-		}
 		// Don't lose the rounded component
 		mLastMotionX += scrollX - (int) scrollX;
 		scrollTo((int) scrollX, getScrollY());
@@ -2532,11 +2435,9 @@ public class InfiniteViewPager extends ViewGroup
 	{
 		super.draw(canvas);
 		boolean needsInvalidate = false;
-
+/*
 		final int overScrollMode = ViewCompat.getOverScrollMode(this);
-		if(overScrollMode == ViewCompat.OVER_SCROLL_ALWAYS
-				|| (overScrollMode == ViewCompat.OVER_SCROLL_IF_CONTENT_SCROLLS && mAdapter != null && mAdapter
-						.getCount() > 1))
+		if(overScrollMode == ViewCompat.OVER_SCROLL_ALWAYS || (overScrollMode == ViewCompat.OVER_SCROLL_IF_CONTENT_SCROLLS && mAdapter != null))
 		{
 			if(!mLeftEdge.isFinished())
 			{
@@ -2565,9 +2466,10 @@ public class InfiniteViewPager extends ViewGroup
 		}
 		else
 		{
+*/
 			mLeftEdge.finish();
 			mRightEdge.finish();
-		}
+//		}
 
 		if(needsInvalidate)
 		{
@@ -2719,30 +2621,7 @@ public class InfiniteViewPager extends ViewGroup
 
 		float oldScrollX = getScrollX();
 		float scrollX = oldScrollX - xOffset;
-		final int width = getClientWidth();
 
-		float leftBound = width * mFirstOffset;
-		float rightBound = width * mLastOffset;
-
-		final ItemInfo firstItem = mItems.get(0);
-		final ItemInfo lastItem = mItems.get(mItems.size() - 1);
-		if(firstItem.position != 0)
-		{
-			leftBound = firstItem.offset * width;
-		}
-		if(lastItem.position != mAdapter.getCount() - 1)
-		{
-			rightBound = lastItem.offset * width;
-		}
-
-		if(scrollX < leftBound)
-		{
-			scrollX = leftBound;
-		}
-		else if(scrollX > rightBound)
-		{
-			scrollX = rightBound;
-		}
 		// Don't lose the rounded component
 		mLastMotionX += scrollX - (int) scrollX;
 		scrollTo((int) scrollX, getScrollY());
@@ -3046,7 +2925,7 @@ public class InfiniteViewPager extends ViewGroup
 
 	boolean pageRight()
 	{
-		if(mAdapter != null && mCurItem < (mAdapter.getCount() - 1))
+		if(mAdapter != null)
 		{
 			setCurrentItem(mCurItem + 1, true);
 			return true;
@@ -3218,10 +3097,8 @@ public class InfiniteViewPager extends ViewGroup
 			event.setClassName(InfiniteViewPager.class.getName());
 			final AccessibilityRecordCompat recordCompat = AccessibilityRecordCompat.obtain();
 			recordCompat.setScrollable(canScroll());
-			if(event.getEventType() == AccessibilityEventCompat.TYPE_VIEW_SCROLLED
-					&& mAdapter != null)
+			if(event.getEventType() == AccessibilityEventCompat.TYPE_VIEW_SCROLLED && mAdapter != null)
 			{
-				recordCompat.setItemCount(mAdapter.getCount());
 				recordCompat.setFromIndex(mCurItem);
 				recordCompat.setToIndex(mCurItem);
 			}
@@ -3273,17 +3150,17 @@ public class InfiniteViewPager extends ViewGroup
 
 		private boolean canScroll()
 		{
-			return (mAdapter != null) && (mAdapter.getCount() > 1);
+			return (mAdapter != null);
 		}
 
 		private boolean canScrollForward()
 		{
-			return (mAdapter != null) && (mCurItem >= 0) && (mCurItem < (mAdapter.getCount() - 1));
+			return (mAdapter != null) && (mCurItem >= 0);
 		}
 
 		private boolean canScrollBackward()
 		{
-			return (mAdapter != null) && (mCurItem > 0) && (mCurItem < mAdapter.getCount());
+			return (mAdapter != null) && (mCurItem > 0);
 		}
 	}
 

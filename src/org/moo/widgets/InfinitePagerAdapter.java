@@ -93,7 +93,7 @@ public abstract class InfinitePagerAdapter
 	/**
 	 * Return the number of views available.
 	 */
-	public abstract int getCount();
+	//public abstract int getCount();
 
 	/**
 	 * Called when a change in the shown pages is going to start being made.
