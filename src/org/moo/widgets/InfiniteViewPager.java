@@ -979,11 +979,11 @@ public class InfiniteViewPager extends ViewGroup
 		return ii;
 	}
 
-	void dataSetChanged()
+	void dataSetChanged(boolean force)
 	{
 		// This method only gets called if our observer is attached, so mAdapter
 		// is non-null.
-		boolean needPopulate = mItems.size() < mOffscreenPageLimit * 2 + 1;
+		boolean needPopulate = mItems.size() < mOffscreenPageLimit * 2 + 1 || force;
 		int newCurrItem = mCurItem;
 
 		boolean isUpdating = false;
@@ -992,12 +992,12 @@ public class InfiniteViewPager extends ViewGroup
 			final ItemInfo ii = mItems.get(i);
 			final int newPos = mAdapter.getItemPosition(ii.object);
 
-			if(newPos == InfinitePagerAdapter.POSITION_UNCHANGED)
+			if(newPos == InfinitePagerAdapter.POSITION_UNCHANGED && !force)
 			{
 				continue;
 			}
 
-			if(newPos == InfinitePagerAdapter.POSITION_NONE)
+			if(newPos == InfinitePagerAdapter.POSITION_NONE || force)
 			{
 				mItems.remove(i);
 				i--;
@@ -3203,13 +3203,13 @@ public class InfiniteViewPager extends ViewGroup
 		@Override
 		public void onChanged()
 		{
-			dataSetChanged();
+			dataSetChanged(false);
 		}
 
 		@Override
 		public void onInvalidated()
 		{
-			dataSetChanged();
+			dataSetChanged(true);
 		}
 	}
 

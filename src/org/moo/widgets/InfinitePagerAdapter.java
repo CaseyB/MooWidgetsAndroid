@@ -235,6 +235,15 @@ public abstract class InfinitePagerAdapter
 	{
 		mObservable.notifyChanged();
 	}
+	
+	/**
+	 * This method should be called by the application if the data backing this
+	 * adapter has changed and associated views should update.
+	 */
+	public void notifyDataSetInvalidated()
+	{
+		mObservable.notifyInvalidated();
+	}
 
 	/**
 	 * Register an observer to receive callbacks related to the adapter's data
